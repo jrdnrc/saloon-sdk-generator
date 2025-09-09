@@ -2,11 +2,13 @@
 
 namespace Crescat\SaloonSdkGenerator\Generators;
 
+use cebe\openapi\spec\Reference;
 use Crescat\SaloonSdkGenerator\Data\Generator\ApiSpecification;
 use Crescat\SaloonSdkGenerator\Data\Generator\Endpoint;
 use Crescat\SaloonSdkGenerator\Data\Generator\Parameter;
 use Crescat\SaloonSdkGenerator\Generator;
 use Crescat\SaloonSdkGenerator\Helpers\NameHelper;
+use Illuminate\Support\Str;
 use Nette\InvalidStateException;
 use Nette\PhpGenerator\ClassType;
 use Nette\PhpGenerator\Literal;
@@ -17,6 +19,7 @@ use Saloon\Http\Response;
 
 class ResourceGenerator extends Generator
 {
+    private array $responseClasses = [];
     protected array $duplicateRequests = [];
 
     public function generate(ApiSpecification $specification): PhpFile|array
@@ -42,6 +45,11 @@ class ResourceGenerator extends Generator
         }
 
         return $classes;
+    }
+
+    private function createResponseName(Endpoint $endpoint, int $status): string
+    {
+        return Str::studly(NameHelper::normalize("{$endpoint->name}{$status}")) . "Response";
     }
 
     /**
@@ -89,6 +97,41 @@ class ResourceGenerator extends Generator
                     ->addComment('@todo Fix duplicated method name');
             }
 
+            $types = [];
+
+
+            foreach (array_keys($endpoint->response) as $status) {
+                if ($status === 204) {
+                    continue;
+                }
+
+                $schema = array_values($endpoint->response[$status]->content ?? [])[0]->schema ?? null;
+
+                if ($schema instanceof Reference) {
+                    $name = Str::afterLast($schema->getReference(), '/');
+
+                    $dtoClassName = NameHelper::dtoClassName($name);
+                    // Use the FQN for the type
+                    $types[] = $type = "{$dtoClassName}";
+
+                    $namespace->addUse(
+                        "{$this->config->namespace}\\{$this->config->dtoNamespaceSuffix}\\{$type}"
+                    );
+                } else {
+                    $types[] = $type = $this->createResponseName($endpoint, $status);
+                    
+                    $collection = Str::studly($endpoint->collection ?? 'Default');
+
+                    $namespace->addUse(
+                        "{$this->config->namespace}\\Response\\{$collection}\\{$type}"
+                    );
+                }
+            }
+
+            $typesString = implode('|', $types);
+
+            $method->addComment(sprintf('@return Response<%s, %s>', $requestClassNameAlias ?? $requestClassName, $typesString));
+
             $method->setReturnType(Response::class);
 
             $args = [];
@@ -119,6 +162,8 @@ class ResourceGenerator extends Generator
                 $this->addPropertyToMethod($method, $parameter);
                 $args[] = new Literal(sprintf('$%s', NameHelper::safeVariableName($parameter->name)));
             }
+
+
 
             $method->setBody(
                 new Literal(sprintf('return $this->connector->send(new %s(%s));', $requestClassNameAlias ?? $requestClassName, implode(', ', $args)))

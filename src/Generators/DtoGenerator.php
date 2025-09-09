@@ -21,6 +21,7 @@ class DtoGenerator extends Generator
     public function generate(ApiSpecification $specification): PhpFile|array
     {
 
+        // return [];
         // TODO: since we are resolving the references, we get dupliate DTOs, this generator must be ran without reference resolution so we can handle references internally (generate only the base schema instead of duplicating the same dto with a different name)
 
         if ($specification->components) {
@@ -32,7 +33,7 @@ class DtoGenerator extends Generator
         return $this->generated;
     }
 
-    protected function generateDtoClass($className, Schema $schema)
+    public function generateDtoClass($className, Schema $schema)
     {
         /** @var Schema[] $properties */
         $properties = $schema->properties ?? [];
@@ -55,6 +56,10 @@ class DtoGenerator extends Generator
         $referencedDtos = [];
 
         foreach ($properties as $propertyName => $propertySpec) {
+            if (trim($propertyName) === '') {
+                continue;
+            }
+            
             $type = $this->convertOpenApiTypeToPhp($propertySpec);
             
             // Check if this is a reference to another schema

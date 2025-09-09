@@ -30,9 +30,9 @@ class CodeGenerator
     public function run(ApiSpecification $specification): GeneratedCode
     {
         return new GeneratedCode(
+            dtoClasses: $this->dtoGenerator->generate($specification),
             requestClasses: $this->requestGenerator->generate($specification),
             resourceClasses: $this->resourceGenerator->generate($specification),
-            dtoClasses: $this->dtoGenerator->generate($specification),
             connectorClass: $this->connectorGenerator->generate($specification),
         );
     }

@@ -170,7 +170,7 @@ class OpenApiParser implements Parser
             method: Method::parse($method),
             pathSegments: Str::of($path)->replace('{', ':')->remove('}')->trim('/')->explode('/')->toArray(),
             collection: $operation->tags[0] ?? null, // In the real-world, people USUALLY only use one tag...
-            response: null, // TODO: implement "definition" parsing
+            response: $operation->responses->getResponses(), // TODO: implement "definition" parsing
             description: $operation->description,
             queryParameters: $this->mapParams($operation->parameters ?? [], 'query'),
             // TODO: Check if this differs between spec versions
@@ -189,9 +189,9 @@ class OpenApiParser implements Parser
         return collect($parameters)
             ->map(function ($parameter) {
                 // Resolve Reference objects to their actual Parameter objects
-                if ($parameter instanceof Reference) {
+                if ($parameter->schema instanceof Reference) {
                     // When using RESOLVE_MODE_INLINE, we need to manually resolve the reference
-                    $refPath = $parameter->getReference();
+                    $refPath = $parameter->schema->getReference();
                     
                     // Parse the reference path (e.g., "#/components/parameters/PathAlbumId")
                     if (str_starts_with($refPath, '#/components/parameters/')) {
